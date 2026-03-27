@@ -1,13 +1,13 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates
   ]
 });
@@ -18,13 +18,11 @@ const eventRoles = ["1398804818482561035", "1398804831140839514"];
 const registerChannelID = "1486929573332648007";
 const teamsLogChannelID = "1486929591648911441";
 
-const voiceChannels = [
-"VOICE1","VOICE2","VOICE3","VOICE4","VOICE5","VOICE6","VOICE7","VOICE8",
+const voiceChannels = ["VOICE1","VOICE2","VOICE3","VOICE4","VOICE5","VOICE6","VOICE7","VOICE8",
 "VOICE9","VOICE10","VOICE11","VOICE12","VOICE13","VOICE14","VOICE15","VOICE16",
 "VOICE17","VOICE18","VOICE19","VOICE20","VOICE21","VOICE22","VOICE23","VOICE24",
 "VOICE25","VOICE26","VOICE27","VOICE28","VOICE29","VOICE30","VOICE31","VOICE32",
-"VOICE33","VOICE34"
-];
+"VOICE33","VOICE34"];
 
 const maps = {
 "1️⃣": { name: "Scrap", image: "IMAGE1" },
@@ -46,45 +44,38 @@ let registeredPlayers = new Set();
 let soloPlayers = new Set();
 let teamsStorage = [];
 
-// ====== تحقق الرتب ======
+// ====== تحقق رتبة ======
 function hasEventRole(member) {
-  return eventRoles.some(role => member.roles.cache.has(role));
+  return eventRoles.some(r => member.roles.cache.has(r));
 }
 
 // ===== READY =====
-client.on("ready", async () => {
+client.on("ready", () => {
   console.log(`✅ Logged in as ${client.user.tag}`);
-
-  const data = new SlashCommandBuilder()
-    .setName("winners")
-    .setDescription("اعلان الفائزين")
-    .addStringOption(o => o.setName("event").setDescription("اسم الفعالية").setRequired(true))
-    .addStringOption(o => o.setName("Players").setDescription("الفائزين").setRequired(true))
-    .addStringOption(o => o.setName("host").setDescription(" المنظم ").setRequired(true));
-
-  await client.application.commands.create(data);
 });
 
-// ===== MESSAGE =====
-client.on("messageCreate", async (message) => {
+// ===== SLASH COMMANDS =====
+client.on("interactionCreate", async interaction => {
 
-if (message.author.bot) return;
+if (!interaction.isChatInputCommand()) return;
+
+const cmd = interaction.commandName;
 
 // ===== RULES =====
-if (message.content === "-event rules") {
-message.channel.send({ content: "@everyone" });
+if (cmd === "rules") {
+await interaction.reply({ content: "@everyone 📜 قوانين الايفنت", ephemeral: false });
 }
 
 // ===== MAPS =====
-if (message.content === "-event maps") {
+if (cmd === "maps") {
 
-if (!hasEventRole(message.member)) return;
+if (!hasEventRole(interaction.member)) return interaction.reply("❌ ليس لديك صلاحية");
 
 const embed = new EmbedBuilder()
-.setTitle("🗳️ تصويت المابات")
+.setTitle("🗳️ تصويت المابات ")
 .setDescription("1️⃣ Map1\n2️⃣ Map2\n3️⃣ Map3\n4️⃣ Map4");
 
-const msg = await message.channel.send({ embeds:[embed] });
+const msg = await interaction.reply({ embeds:[embed], fetchReply:true });
 
 for (let e of Object.keys(maps)) await msg.react(e);
 
@@ -96,7 +87,7 @@ msg.reactions.cache.forEach(r=> res[r.emoji.name]=r.count-1);
 
 const win = Object.entries(res).sort((a,b)=>b[1]-a[1])[0][0];
 
-message.channel.send({
+interaction.followUp({
 embeds:[ new EmbedBuilder()
 .setTitle("🏆 الماب ")
 .setDescription(maps[win].name)
@@ -107,19 +98,19 @@ embeds:[ new EmbedBuilder()
 }
 
 // ===== GAMES =====
-if (message.content === "-event games") {
+if (cmd === "games") {
 
-if (!hasEventRole(message.member)) return;
+if (!hasEventRole(interaction.member)) return interaction.reply("❌ ليس لديك صلاحية");
 
 const embed = new EmbedBuilder()
 .setTitle("🎮 تصويت القيم")
 .setDescription("1️⃣ Battle Royal \n2️⃣ Back to BACK \n3️⃣ Gang War ");
 
-const msg = await message.channel.send({ embeds:[embed] });
+const msg = await interaction.reply({ embeds:[embed], fetchReply:true });
 
 for (let e of Object.keys(games)) await msg.react(e);
 
-setTimeout(async ()=>{
+setTimeout(()=>{
 msg.reactions.removeAll();
 
 let res={};
@@ -127,52 +118,45 @@ msg.reactions.cache.forEach(r=> res[r.emoji.name]=r.count-1);
 
 const win = Object.entries(res).sort((a,b)=>b[1]-a[1])[0][0];
 
-message.channel.send(`🏆 الفائز: ${games[win]}`);
+interaction.followUp(`🏆 الفائز: ${games[win]}`);
 
 },300000);
 }
 
-// ===== START VOTE =====
-if (message.content === "-event startvote") {
+// ===== STARTVOTE =====
+if (cmd === "startvote") {
 
-if (!hasEventRole(message.member)) return;
+if (!hasEventRole(interaction.member)) return;
 
-message.channel.send(" بدأ التصويت ");
+const msg = await interaction.reply({ content:"🎮 بدأ تصويت القيم", fetchReply:true });
 
-const msg = await message.channel.send("1️⃣2️⃣3️⃣");
-
-await msg.react("1️⃣");
-await msg.react("2️⃣");
-await msg.react("3️⃣");
+await msg.react("🔝");
+await msg.react("💥");
+await msg.react("⚔️");
 
 setTimeout(async ()=>{
 
 let res={};
 msg.reactions.cache.forEach(r=> res[r.emoji.name]=r.count-1);
-
 const win = Object.entries(res).sort((a,b)=>b[1]-a[1])[0][0];
 
-message.channel.send(`🏆 القيم : ${games[win]}`);
+interaction.followUp(`🏆 القيم الفائز: ${games[win]}`);
 
-// ===== يبدأ تصويت المابات =====
+const mapMsg = await interaction.followUp("🗺️ بدأ تصويت المابات");
 
-const mapMsg = await message.channel.send("🎖️〽️🔥💎");
+await mapMsg.react("🎖️");
+await mapMsg.react("〽️");
+await mapMsg.react("🔥");
+await mapMsg.react("💎");
 
-await mapMsg.react("1️⃣");
-await mapMsg.react("2️⃣");
-await mapMsg.react("3️⃣");
-await mapMsg.react("4️⃣");
-
-setTimeout(async ()=>{
-
+setTimeout(()=>{
 let res2={};
 mapMsg.reactions.cache.forEach(r=> res2[r.emoji.name]=r.count-1);
-
 const win2 = Object.entries(res2).sort((a,b)=>b[1]-a[1])[0][0];
 
-message.channel.send({
+interaction.followUp({
 embeds:[ new EmbedBuilder()
-.setTitle("🏆 الماب ")
+.setTitle("🏆 الماب الفائز")
 .setDescription(maps[win2].name)
 .setImage(maps[win2].image)]
 });
@@ -182,29 +166,67 @@ embeds:[ new EmbedBuilder()
 },300000);
 }
 
-// ===== TEAMS =====
-if (message.content === "-teams") {
+// ===== TEAMS OPEN =====
+if (cmd === "teams-open") {
 teamsOpen = true;
-teamNumber = 1;
+teamsStorage = [];
 registeredPlayers.clear();
 soloPlayers.clear();
-teamsStorage = [];
-message.channel.send(" تم فتح تسجيل التيمات");
+teamNumber = 1;
+
+await interaction.reply("✅ تم فتح التسجيل");
 }
 
-// ===== CLOSE =====
-if (message.content === "-teams close") {
+// ===== TEAMS CLOSE =====
+if (cmd === "teams-close") {
 teamsOpen = false;
-message.channel.send("❌ تم إغلاق التسجيل");
+await interaction.reply("❌ تم قفل التسجيل");
 }
 
-// ===== REGISTER =====
-if (teamsOpen && message.channel.id === registerChannelID) {
+// ===== DISTRIBUTE =====
+if (cmd === "distribute") {
+
+for (let i=0;i<teamsStorage.length;i++){
+const voice = interaction.guild.channels.cache.get(voiceChannels[i]);
+
+for (let id of teamsStorage[i]){
+const m = await interaction.guild.members.fetch(id).catch(()=>null);
+if (!m) continue;
+if (m.voice.channel) await m.voice.setChannel(voice).catch(()=>{});
+}
+}
+
+await interaction.reply("🚀 تم توزيع التيمات");
+}
+
+// ===== WINNERS =====
+if (cmd === "winners") {
+
+const event = interaction.options.getString("event");
+const host = interaction.options.getString("host");
+const players = interaction.options.getString("players");
+
+const embed = new EmbedBuilder()
+.setTitle("🏆 الفائزين")
+.setDescription(`🎮 ${event}\n👑 ${players}\n🎙️ ${host}`)
+.setColor("Gold");
+
+await interaction.reply({ embeds:[embed] });
+}
+
+});
+
+// ===== TEAM REGISTER =====
+client.on("messageCreate", async message => {
+
+if (message.author.bot) return;
+if (!teamsOpen) return;
+if (message.channel.id !== registerChannelID) return;
 
 const content = message.content.toLowerCase();
 
+// SOLO
 if (content.includes("solo") || content.includes("سولو")) {
-
 if (registeredPlayers.has(message.author.id)) return;
 
 soloPlayers.add(message.author.id);
@@ -212,13 +234,14 @@ registeredPlayers.add(message.author.id);
 
 const log = message.guild.channels.cache.get(teamsLogChannelID);
 
-let txt=" SOLO\n";
+let txt="🎯 SOLO\n";
 soloPlayers.forEach(id=> txt+=`<@${id}>\n`);
 
 log.send(txt);
 return;
 }
 
+// TEAM
 const mentions = message.mentions.users;
 if (mentions.size === 0) return;
 
@@ -238,49 +261,6 @@ mentions.forEach(u=> txt+=`<@${u.id}>\n`);
 teamNumber++;
 
 log.send(txt);
-}
-
-// ===== DISTRIBUTE =====
-if (message.content === "-توزيع") {
-
-for (let i=0;i<teamsStorage.length;i++){
-
-const voice = message.guild.channels.cache.get(voiceChannels[i]);
-
-for (let id of teamsStorage[i]){
-
-const m = await message.guild.members.fetch(id).catch(()=>null);
-if (!m) continue;
-
-if (m.voice.channel)
-await m.voice.setChannel(voice).catch(()=>{});
-}
-}
-
-message.channel.send("✅ تم توزيع التيمات");
-
-}
-
-});
-
-// ===== SLASH WINNERS =====
-client.on("interactionCreate", async interaction => {
-
-if (!interaction.isChatInputCommand()) return;
-
-if (interaction.commandName === "winners") {
-
-const event = interaction.options.getString("event");
-const host = interaction.options.getString("host");
-const players = interaction.options.getString("players");
-
-const embed = new EmbedBuilder()
-.setTitle("🏆 الفائزين")
-.setDescription(`🎮 ${event}\n👑 ${players}\n🎙️ ${host}`)
-.setColor("Gold");
-
-interaction.reply({ embeds:[embed] });
-}
 
 });
 
